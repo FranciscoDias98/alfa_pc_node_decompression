@@ -1,6 +1,3 @@
-#ifndef ALFA_PD_H
-#define ALFA_PD_H
-
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl/io/ply_io.h>
@@ -19,6 +16,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include "alfa_msg/AlfaConfigure.h"
 #include "alfa_msg/AlfaMetrics.h"
+
 
 
 #define DDR_SIZE 0x060000;
@@ -42,8 +40,11 @@ public:
     void do_DIORfilter();
     void do_hardwarefilter();
 
-    void apply_filter(pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloud);
+    pcl::PointCloud<pcl::PointXYZI>::Ptr apply_filter(pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloud);
     void update_filterSettings(const alfa_msg::AlfaConfigure::Request configs);
+
+    alfa_msg::AlfaMetrics outputMetrics;
+
 private:
     unsigned int filter_number;
     float parameter1;
@@ -61,17 +62,18 @@ private:
 
     void run_worker(int thread_number);
     void run_lior_worker(int thread_number);
-    void run_dlior_worker(int thread_number);
-    void filter_point(pcl::PointXYZI point,bool isDIOR=0);
-    void filter_pointROR(pcl::PointXYZI point);
+    void run_dior_worker(int thread_number);
+    bool filter_point(pcl::PointXYZI point,bool isDIOR=0);
+    bool filter_pointROR(pcl::PointXYZI point);
     void decode_pointcloud();
+    boost::mutex mutex;
 
+
+    pcl::KdTreeFLANN<pcl::PointXYZI> kdtree;
 
     pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloud, outputCloud;
 
-    alfa_msg::AlfaMetrics outputMetrics;
+
 
 
 };
-
-#endif // ALFA_PD_H

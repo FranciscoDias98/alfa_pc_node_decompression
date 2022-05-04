@@ -1,7 +1,4 @@
-﻿#ifndef ROSTHREAD_H
-#define ROSTHREAD_H
-
-#include <ros/ros.h>
+﻿#include <ros/ros.h>
 
 
 // PCL includes
@@ -19,14 +16,24 @@
 #include "alfa_msg/AlfaMetrics.h"
 #include "alfa_msg/AlfaAlivePing.h"
 
-#define TIMER_SLEEP 1000
+#include "alfa_pd.h"  //include user defined module
+
+#define NODE_NAME "alfa_pd"
+
+#define NODE_TYPE "Weather denoising"
+
+
+#define TIMER_SLEEP 50000
 
 
 using namespace std;
 class AlfaInterface
 {
 public:
-    AlfaInterface(pcl::PointCloud<pcl::PointXYZI>::Ptr pcloud);
+    AlfaInterface();
+    void publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
+    void publish_metrics(alfa_msg::AlfaMetrics &metrics);
+
 
 private:
     void cloud_cb (const  sensor_msgs::PointCloud2ConstPtr& cloud);
@@ -41,10 +48,13 @@ private:
     boost::thread *m_spin_thread;
     ros::Publisher filter_metrics;
     ros::Publisher alive_publisher;
+    ros::Publisher cloud_publisher;
 
     boost::thread* alive_ticker;
 
     void spin();
+
+    Alfa_Pd* node; //define a object of the defined module
 
 
 
@@ -54,4 +64,3 @@ private:
 
 
 
-#endif // ROSTHREAD_H
