@@ -34,14 +34,10 @@ void AlfaInterface::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
         cout <<"Recieved empty point cloud"<<endl;
         return;
     }
-    cout<<"Recieved cloud"<<endl;
     pcl::fromROSMsg(*cloud,*pcloud);
 
-
     publish_pointcloud(node->apply_filter(pcloud));
-    cout<< "Sent point cloud"<<endl;
     publish_metrics(node->outputMetrics);
-    cout << "Sent metrics"<<endl;
 
 }
 
@@ -72,7 +68,7 @@ void AlfaInterface::init()
 
 void AlfaInterface::subscrive_topics()
 {
-    sub_cloud = nh.subscribe("alfa_pointcloud",0,&AlfaInterface::cloud_cb,this);
+    sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaInterface::cloud_cb,this);
     sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaInterface::parameters_cb,this);
     ros::NodeHandle n;
     filter_metrics = n.advertise<alfa_msg::AlfaMetrics>(string(NODE_NAME).append("_metrics"), 1);
@@ -106,7 +102,7 @@ void AlfaInterface::ticker_thread()
         parameter4.config = 5;
         parameter4.config_name = "Neighbor Threshold";
 
-        parameter5.config = 1;
+        parameter5.config = 0.005;
         parameter5.config_name = "Intensity Treshold Parameter:";
 
         parameter6.config = 4;

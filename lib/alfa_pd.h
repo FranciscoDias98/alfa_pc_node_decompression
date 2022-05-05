@@ -52,6 +52,7 @@ private:
     float parameter3;
     float parameter4;
     float parameter5;
+    float parameter6;
     bool use_multi;
     bool hardware_ready;
     int number_threads;
@@ -63,8 +64,8 @@ private:
     void run_worker(int thread_number);
     void run_lior_worker(int thread_number);
     void run_dior_worker(int thread_number);
-    bool filter_point(pcl::PointXYZI point,bool isDIOR=0);
-    bool filter_pointROR(pcl::PointXYZI point);
+    bool filter_point(pcl::PointXYZI point,pcl::KdTreeFLANN<pcl::PointXYZI> kdtree);
+    bool filter_pointROR(pcl::PointXYZI point,pcl::KdTreeFLANN<pcl::PointXYZI> kdtree);
     void decode_pointcloud();
     boost::mutex mutex;
 

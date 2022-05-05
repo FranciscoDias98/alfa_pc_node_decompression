@@ -1,6 +1,7 @@
 #include "alfa_pd.h"
 #include <chrono>
 #include<time.h>
+#include <pcl/common/io.h>
 
 Alfa_Pd::Alfa_Pd()
 {
@@ -52,6 +53,7 @@ void Alfa_Pd::do_drorfilter()
 {
    outputCloud->clear();
    kdtree.setInputCloud(inputCloud);
+   number_threads = parameter5;
    if(thread_list.size()>1)
    {
        for (int i =0;i < thread_list.size();i++)
@@ -64,11 +66,11 @@ void Alfa_Pd::do_drorfilter()
    if(use_multi == true)
    {
        thread_list.clear();
-       for (int i =0;i <= number_threads;i++)
+       for (int i =0;i < number_threads;i++)
        {
            thread_list.push_back(new boost::thread(&Alfa_Pd::run_worker, this,i));
        }
-       for (int i =0;i <= number_threads;i++)
+       for (int i =0;i < number_threads;i++)
        {
            thread_list[i]->join();
        }
@@ -77,7 +79,7 @@ void Alfa_Pd::do_drorfilter()
    else {
        for (auto &point : *inputCloud)
        {
-           if(filter_point(point))
+           if(filter_point(point,kdtree))
                outputCloud->push_back(point);
        }
    }
@@ -134,11 +136,11 @@ void Alfa_Pd::do_LIORfilter()
     {
         thread_list.clear();
 
-        for (int i =0;i <= number_threads;i++)
+        for (int i =0;i < number_threads;i++)
         {
             thread_list.push_back(new boost::thread(&Alfa_Pd::run_lior_worker, this,i));
         }
-        for (int i =0;i <= number_threads;i++)
+        for (int i =0;i < number_threads;i++)
         {
             thread_list[i]->join();
          }
@@ -153,7 +155,7 @@ void Alfa_Pd::do_LIORfilter()
             }
             else
             {
-                if(filter_pointROR(point))
+                if(filter_pointROR(point,kdtree))
                     outputCloud->push_back(point);
 
             }
@@ -167,9 +169,11 @@ void Alfa_Pd::do_LIORfilter()
 
 void Alfa_Pd::do_DIORfilter()
 {
+    mutex.lock();
     outputCloud->clear();
     outputCloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
     kdtree.setInputCloud(inputCloud);
+    mutex.unlock();
     number_threads = parameter5;
        if(thread_list.size()>1)
        {
@@ -184,11 +188,11 @@ void Alfa_Pd::do_DIORfilter()
        if (number_threads >1)
        {
            thread_list.clear();
-           for (int i =0;i <= number_threads;i++)
+           for (int i =0;i < number_threads;i++)
            {
                thread_list.push_back(new boost::thread(&Alfa_Pd::run_dior_worker, this,i));
            }
-           for (int i =0;i <= number_threads;i++)
+           for (int i =0;i < number_threads;i++)
            {
                thread_list[i]->join();
             }
@@ -203,7 +207,7 @@ void Alfa_Pd::do_DIORfilter()
                }
                else
                {
-                   if(filter_point(point,1))
+                   if(filter_point(point,kdtree))
                        outputCloud->push_back(point);
                }
            }
@@ -309,7 +313,7 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr Alfa_Pd::apply_filter(pcl::PointCloud<pcl::
 {
     auto start = high_resolution_clock::now();
     this->inputCloud = inputCloud;
-    outputMetrics.metrics.clear();
+   outputMetrics.metrics.clear();
     switch (filter_number) {
        case 1:
            do_voxelfilter();
@@ -354,23 +358,37 @@ pcl::PointCloud<pcl::PointXYZI>::Ptr Alfa_Pd::apply_filter(pcl::PointCloud<pcl::
 void Alfa_Pd::update_filterSettings(const alfa_msg::AlfaConfigure::Request configs)
 {
     cout<<"updating filter Settings to "<<configs.configurations[0].config<<endl;
+    if(configs.configurations.size()>0)
+    {
+        filter_number = configs.configurations[0].config;
 
-    filter_number = configs.configurations[0].config;
-    parameter1 = configs.configurations[1].config;
-    parameter2 = configs.configurations[2].config;
-    parameter3 = configs.configurations[3].config;
-    parameter4 = configs.configurations[4].config;
-    parameter5 = configs.configurations[5].config;
+        switch(configs.configurations.size())
+        {
+            case 7:
+                parameter6 = configs.configurations[6].config;
+            case 6:
+                parameter5 = configs.configurations[5].config;
+            case 5:
+                parameter4 = configs.configurations[4].config;
+            case 4:
+                parameter3 = configs.configurations[3].config;
+            case 3:
+                parameter2 = configs.configurations[2].config;
+            case 2:
+                parameter1 = configs.configurations[1].config;
+            break;
+
+        }
+
+    }
     // TODO: Control of configurations
 }
 
-bool Alfa_Pd::filter_pointROR(pcl::PointXYZI point)
+bool Alfa_Pd::filter_pointROR(pcl::PointXYZI point,pcl::KdTreeFLANN<pcl::PointXYZI> kdtree)
 {
     std::vector<int> pointIdxRadiusSearch;
     std::vector<float> pointRadiusSquaredDistance;
-    mutex.lock();
     int neighbors = kdtree.radiusSearch(point,parameter1, pointIdxRadiusSearch, pointRadiusSquaredDistance);
-    mutex.unlock();
     if (neighbors >parameter3)
     {
         return true;
@@ -381,19 +399,14 @@ bool Alfa_Pd::filter_pointROR(pcl::PointXYZI point)
 
 
 
-bool Alfa_Pd::filter_point(pcl::PointXYZI point,bool isDIOR)
+bool Alfa_Pd::filter_point(pcl::PointXYZI point,pcl::KdTreeFLANN<pcl::PointXYZI> kdtree)
 {
 
     float distance = sqrt(pow(point.x,2)+pow(point.y,2));
     float search_radius;
     float angle;
-    if(isDIOR)
-    {
-       angle = 0.3;
-    }
-    else {
-       angle = parameter4;
-    }
+
+     angle = parameter5;
 
     if(distance<parameter1)
     {
@@ -405,9 +418,7 @@ bool Alfa_Pd::filter_point(pcl::PointXYZI point,bool isDIOR)
     std::vector<int> pointIdxRadiusSearch;
     std::vector<float> pointRadiusSquaredDistance;
 
-    mutex.lock();
     int neighbors = kdtree.radiusSearch (point, search_radius, pointIdxRadiusSearch, pointRadiusSquaredDistance) ;
-    mutex.unlock();
     if(neighbors>=parameter3)
     {
         return true;
@@ -421,7 +432,7 @@ void Alfa_Pd::run_worker(int thread_number)
     for(int i =(inputCloud->size()/number_threads)*thread_number; i<= (inputCloud->size()/number_threads)*(thread_number+1);i++)
     {
         pcl::PointXYZI point = (*inputCloud)[i];
-        if(filter_point(point))
+        if(filter_point(point,kdtree))
         {
             mutex.lock();
             outputCloud->push_back(point);
@@ -448,7 +459,7 @@ void Alfa_Pd::run_lior_worker(int thread_number)
         }
         else
         {
-            if(filter_pointROR(point))
+            if(filter_pointROR(point,kdtree))
             {
                 mutex.lock();
                 outputCloud->push_back(point);
@@ -475,7 +486,7 @@ void Alfa_Pd::run_dior_worker(int thread_number)
         }
         else
         {
-            if(filter_point(point,1))
+            if(filter_point(point,kdtree))
             {
                 mutex.lock();
                 outputCloud->push_back(point);
