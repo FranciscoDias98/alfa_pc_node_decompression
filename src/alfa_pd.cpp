@@ -14,13 +14,20 @@ Alfa_Pd::Alfa_Pd()
     parameter5 = 0.1;
     hardware_ready = 0;
     int fd;
-    int ddr_size = DDR_SIZE;
+    //int ddr_size = DDR_SIZE;
     int ddr_base_ptr = DDR_BASE_PTR;
     int config_size = CONFIG_SIZE;
     int config_base_ptr = CONFIGS_BASE_PTR;
+    //Hardware parameters:
+    unsigned int ddr_size = 0x060000;
+    unsigned int configs_size = 0x0006;
+    off_t ddr_ptr_base = 0x0F000000; // physical base address
+    off_t configs_ptr_base =0xA0000000;  // physical base address
     if ((fd = open("/dev/mem", O_RDWR | O_SYNC)) != -1) {
-         ddr_pointer = (u64 *)mmap(NULL, ddr_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, ddr_base_ptr);
-         configs_pointer = (uint32_t *)mmap(NULL, config_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, config_base_ptr);
+         //ddr_pointer = (u64 *)mmap(NULL, ddr_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, ddr_base_ptr);
+         //configs_pointer = (uint32_t *)mmap(NULL, config_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, config_base_ptr);
+    ddr_pointer = (u64 *)mmap(NULL, ddr_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, ddr_ptr_base);
+    configs_pointer = (uint32_t *)mmap(NULL, configs_size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, configs_ptr_base);
          hardware_ready=1;
     }
 
@@ -225,7 +232,7 @@ void Alfa_Pd::do_hardwarefilter()
     frame_id++;
     int intensity_mult;
     if(parameter1 !=1)intensity_mult = parameter5;
-
+    cout<<"probs das configs"<<endl;
     configs_pointer[0]=0;
     uint32_t config = 2+ ((((uint)parameter1)<<2)+((uint)parameter3<<6) +((uint)parameter2<<10)+((uint)parameter4<<14)+((uint)parameter5<<23));
     cout << "Storing points!"<<endl;
