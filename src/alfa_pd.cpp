@@ -227,14 +227,14 @@ using namespace std::chrono;
 
 void Alfa_Pd::do_hardwarefilter()
 {
-    cout<<"entrei aqui"<<endl;
+    cout<<"inensity:"<<parameter6<<endl;
     auto start = high_resolution_clock::now();
     frame_id++;
     int intensity_mult;
-    if(parameter1 !=1)intensity_mult = parameter5;
+    if(parameter1 !=1)intensity_mult = parameter6;
     //cout<<"probs das configs"<<endl;
     configs_pointer[0]=0;
-    uint32_t config = 2+ ((((uint)parameter1)<<2)+((uint)parameter3<<6) +((uint)parameter2<<10)+((uint)parameter4<<14)+((uint)parameter5<<23));
+    uint32_t config = 2+ ((((uint)parameter1)<<2)+((uint)parameter5<<6) +((uint)parameter4<<10)+((uint)parameter2<<14)+((uint)parameter3<<23));
     //cout << "Storing points!"<<endl;
        //for (auto &point : *inputCloud)
    int32_t a_64points[2];
@@ -371,7 +371,7 @@ void Alfa_Pd::update_filterSettings(const alfa_msg::AlfaConfigure::Request confi
         filter_number = configs.configurations[0].config;
 
         switch(configs.configurations.size())
-        {
+        {         
             case 7:
                 parameter6 = configs.configurations[6].config;
             case 6:
