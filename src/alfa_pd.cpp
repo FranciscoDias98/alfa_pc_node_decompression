@@ -227,15 +227,15 @@ void Alfa_Pd::do_hardwarefilter()
 
     configs_pointer[0]=0;
     uint32_t config = 2+ ((((uint)parameter1)<<2)+((uint)parameter3<<6) +((uint)parameter2<<10)+((uint)parameter4<<14)+((uint)parameter5<<23));
-       //cout << "Storing points!"<<endl;
+    cout << "Storing points!"<<endl;
        //for (auto &point : *inputCloud)
    int32_t a_64points[2];
    for (int var = 0; var < inputCloud->size(); var++)
    {
        a_64points[0] = ((int16_t)((*inputCloud)[var].x*100))+(((int16_t)((*inputCloud)[var].y*100+1))<<16);
-       //cout<<"Point.x: " <<hex<<(int16_t)((*inputCloud)[var].x*100)<<"point.y"<<(int16_t)((*inputCloud)[var].y*100)<<endl;
+       cout<<"Point.x: " <<hex<<(int16_t)((*inputCloud)[var].x*100)<<"point.y"<<(int16_t)((*inputCloud)[var].y*100)<<endl;
        a_64points[1]=((int16_t)((*inputCloud)[var].z*100))+(((int16_t)((*inputCloud)[var].intensity*intensity_mult+1))<<16);
-       //cout<<"Point: "<<var<<" :"<<hex<<a_64points[1]<<" "<< hex << a_64points[0]<<endl;
+       cout<<"Point: "<<var<<" :"<<hex<<a_64points[1]<<" "<< hex << a_64points[0]<<endl;
        memcpy((void*)(ddr_pointer+var),a_64points,sizeof(int32_t)*2);
    }
     auto stop = high_resolution_clock::now();
