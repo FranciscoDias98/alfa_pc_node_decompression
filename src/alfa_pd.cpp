@@ -220,6 +220,7 @@ using namespace std::chrono;
 
 void Alfa_Pd::do_hardwarefilter()
 {
+    cout<<"entrei aqui"<<endl;
     auto start = high_resolution_clock::now();
     frame_id++;
     int intensity_mult;
