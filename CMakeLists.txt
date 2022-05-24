@@ -86,8 +86,8 @@ catkin_package(
 add_definitions(${PCL_DEFINITIONS})
 
 set(project_SOURCES main.cpp
-    src/alfa_interface.cpp src/alfa_pd.cpp
-    lib/alfa_interface.h lib/alfa_pd.h
+    src/alfa_node.cpp src/alfa_pd.cpp
+    lib/alfa_node.h lib/alfa_pd.h
     )
 
 add_executable(alfa_pd ${project_SOURCES})

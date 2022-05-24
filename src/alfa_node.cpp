@@ -1,32 +1,37 @@
-#include "alfa_interface.h"
+#include "alfa_node.h"
 #include <thread>
 #include <unistd.h>
 #include <chrono>
 
 
-AlfaInterface::AlfaInterface()
+AlfaNode::AlfaNode()
 {
     node = new Alfa_Pd();
     subscrive_topics();
-    alive_ticker = new boost::thread(&AlfaInterface::ticker_thread,this);
+    alive_ticker = new boost::thread(&AlfaNode::ticker_thread,this);
     pcloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
 
 }
 
-void AlfaInterface::publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
+void AlfaNode::publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
 {
     sensor_msgs::PointCloud2 pcl2_frame;
     pcl::toROSMsg(*output_cloud,pcl2_frame);
     cloud_publisher.publish(pcl2_frame);
 }
 
-void AlfaInterface::publish_metrics(alfa_msg::AlfaMetrics &metrics)
+void AlfaNode::publish_metrics(alfa_msg::AlfaMetrics &metrics)
 {
     filter_metrics.publish(metrics);
 
 }
 
-void AlfaInterface::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
+void AlfaNode::process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
+{
+    cout << "Please implement the process_pointcloud function"<<endl;
+}
+
+void AlfaNode::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
 {
     //cout<<"Recieved pointcloud"<<endl;
     if ((cloud->width * cloud->height) == 0)
@@ -41,7 +46,7 @@ void AlfaInterface::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
 
 }
 
-bool AlfaInterface::parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_msg::AlfaConfigure::Response &res)
+bool AlfaNode::parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_msg::AlfaConfigure::Response &res)
 {
     cout<<"Recieved FilterSettings with size" <<req.configurations.size()<<"... Updating"<<endl;
     for (int i=0; i< req.configurations.size();i++) {
@@ -53,7 +58,7 @@ bool AlfaInterface::parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_ms
 
 }
 
-void AlfaInterface::init()
+void AlfaNode::init()
 {
         char arg0[]= "filter_node";
         char *argv[]={arg0,NULL};
@@ -66,20 +71,20 @@ void AlfaInterface::init()
 
 }
 
-void AlfaInterface::subscrive_topics()
+void AlfaNode::subscrive_topics()
 {
-    sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaInterface::cloud_cb,this);
-    sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaInterface::parameters_cb,this);
+    sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaNode::cloud_cb,this);
+    sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaNode::parameters_cb,this);
     ros::NodeHandle n;
     filter_metrics = n.advertise<alfa_msg::AlfaMetrics>(string(NODE_NAME).append("_metrics"), 1);
     alive_publisher = n.advertise<alfa_msg::AlfaAlivePing>(string(NODE_NAME).append("_alive"),1);
     cloud_publisher = n.advertise<sensor_msgs::PointCloud2>(string(NODE_NAME).append("_cloud"),1);
-    m_spin_thread = new boost::thread(&AlfaInterface::spin, this);
+    m_spin_thread = new boost::thread(&AlfaNode::spin, this);
 
 
 }
 
-void AlfaInterface::ticker_thread()
+void AlfaNode::ticker_thread()
 {
     while(ros::ok())
     {
@@ -121,7 +126,7 @@ void AlfaInterface::ticker_thread()
     }
 }
 
-void AlfaInterface::spin()
+void AlfaNode::spin()
 {
     cout<<"started spinning with success"<<endl;
     ros::spin();

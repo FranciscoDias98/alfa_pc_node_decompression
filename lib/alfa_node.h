@@ -27,15 +27,21 @@
 
 
 using namespace std;
-class AlfaInterface
+class AlfaNode
 {
 public:
-    AlfaInterface();
+    AlfaNode();
     void publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
     void publish_metrics(alfa_msg::AlfaMetrics &metrics);
 
+    virtual void process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
+    virtual alfa_msg::AlfaConfigure::Response   process_metrics(alfa_msg::AlfaConfigure::Request &req);
+
+    int node_status;
+    virtual ~AlfaNode();
 
 private:
+
     void cloud_cb (const  sensor_msgs::PointCloud2ConstPtr& cloud);
     bool parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_msg::AlfaConfigure::Response &res);
     ros::Subscriber sub_cloud;
@@ -53,10 +59,6 @@ private:
     boost::thread* alive_ticker;
 
     void spin();
-
-    Alfa_Pd* node; //define a object of the defined module
-
-
 
 };
 
