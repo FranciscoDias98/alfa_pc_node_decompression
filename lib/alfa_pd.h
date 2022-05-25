@@ -16,7 +16,7 @@
 #include <sensor_msgs/PointCloud2.h>
 #include "alfa_msg/AlfaConfigure.h"
 #include "alfa_msg/AlfaMetrics.h"
-
+#include "alfa_node.h"
 
 
 #define DDR_SIZE 0x060000;
@@ -27,7 +27,7 @@
 using namespace std;
 typedef long long int u64;
 
-class Alfa_Pd
+class Alfa_Pd :  public  AlfaNode
 {
 public:
     Alfa_Pd();
@@ -75,6 +75,7 @@ private:
     pcl::PointCloud<pcl::PointXYZI>::Ptr inputCloud, outputCloud;
 
 
-
+    void process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
+     alfa_msg::AlfaConfigure::Response   process_config(alfa_msg::AlfaConfigure::Request &req);
 
 };

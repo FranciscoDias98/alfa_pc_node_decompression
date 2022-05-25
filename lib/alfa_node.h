@@ -16,7 +16,6 @@
 #include "alfa_msg/AlfaMetrics.h"
 #include "alfa_msg/AlfaAlivePing.h"
 
-#include "alfa_pd.h"  //include user defined module
 
 #define NODE_NAME "alfa_pd"
 
@@ -31,11 +30,12 @@ class AlfaNode
 {
 public:
     AlfaNode();
+
     void publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
     void publish_metrics(alfa_msg::AlfaMetrics &metrics);
 
     virtual void process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
-    virtual alfa_msg::AlfaConfigure::Response   process_metrics(alfa_msg::AlfaConfigure::Request &req);
+    virtual alfa_msg::AlfaConfigure::Response   process_config(alfa_msg::AlfaConfigure::Request &req);
 
     int node_status;
     virtual ~AlfaNode();
@@ -49,7 +49,7 @@ private:
     ros::NodeHandle nh;
     pcl::PointCloud<pcl::PointXYZI>::Ptr pcloud;
     void init();
-    void subscrive_topics();
+    void subscribe_topics();
     void ticker_thread();
     boost::thread *m_spin_thread;
     ros::Publisher filter_metrics;

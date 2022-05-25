@@ -6,8 +6,8 @@
 
 AlfaNode::AlfaNode()
 {
-    node = new Alfa_Pd();
-    subscrive_topics();
+
+    subscribe_topics();
     alive_ticker = new boost::thread(&AlfaNode::ticker_thread,this);
     pcloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
 
@@ -31,6 +31,17 @@ void AlfaNode::process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cl
     cout << "Please implement the process_pointcloud function"<<endl;
 }
 
+alfa_msg::AlfaConfigure::Response AlfaNode::process_config(alfa_msg::AlfaConfigure::Request &req)
+{
+    cout << "Please implement the process_config function"<<endl;
+
+}
+
+AlfaNode::~AlfaNode()
+{
+
+}
+
 void AlfaNode::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
 {
     //cout<<"Recieved pointcloud"<<endl;
@@ -41,8 +52,7 @@ void AlfaNode::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
     }
     pcl::fromROSMsg(*cloud,*pcloud);
 
-    publish_pointcloud(node->apply_filter(pcloud));
-    publish_metrics(node->outputMetrics);
+    process_pointcloud(pcloud);
 
 }
 
@@ -52,10 +62,9 @@ bool AlfaNode::parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_msg::Al
     for (int i=0; i< req.configurations.size();i++) {
         cout <<"Configuration: "<<i<< " With name: "<< req.configurations[i].config_name<< " with value: "<< req.configurations[i].config<<endl;
     }
-    node->update_filterSettings(req);
-    res.return_status=1;
-    return true;
 
+    res = process_config(req);
+    return true;
 }
 
 void AlfaNode::init()
@@ -71,7 +80,7 @@ void AlfaNode::init()
 
 }
 
-void AlfaNode::subscrive_topics()
+void AlfaNode::subscribe_topics()
 {
     sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaNode::cloud_cb,this);
     sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaNode::parameters_cb,this);
@@ -120,7 +129,7 @@ void AlfaNode::ticker_thread()
         newPing.default_configurations.push_back(parameter5);
         newPing.default_configurations.push_back(parameter6);
 
-
+        newPing.current_status = node_status;
         alive_publisher.publish(newPing);
         std::this_thread::sleep_for(std::chrono::milliseconds(TIMER_SLEEP));
     }

@@ -314,6 +314,22 @@ void Alfa_Pd::decode_pointcloud()
       }
 }
 
+void Alfa_Pd::process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
+{
+    publish_pointcloud(apply_filter(output_cloud));
+    publish_metrics(outputMetrics);
+}
+
+
+
+alfa_msg::AlfaConfigure::Response Alfa_Pd::process_config(alfa_msg::AlfaConfigure::Request &req)
+{
+    update_filterSettings(req);
+    alfa_msg::AlfaConfigure::Response response;
+    response.return_status = 1;
+    return response ;
+}
+
 
 
 

@@ -1,5 +1,5 @@
  #include "ros/ros.h"
-#include "alfa_interface.h"
+#include "alfa_pd.h"
 
 int main(int argc, char **argv)
 {
@@ -9,7 +9,7 @@ int main(int argc, char **argv)
            cout <<"Failed to inicialize ros"<<endl;
        }
 
-    AlfaInterface new_node;
+    Alfa_Pd new_node;
     while(ros::ok())
     {
 
