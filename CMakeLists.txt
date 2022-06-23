@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(alfa_pc_compression)
+project(alfa_pc_decompression)
 #if (NOT "${CMAKE_CXX_STANDARD_COMPUTED_DEFAULT}")
 #  message(STATUS "Changing CXX_STANDARD from C++98 to C++11")
 #  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
@@ -86,8 +86,8 @@ catkin_package(
 add_definitions(${PCL_DEFINITIONS})
 
 set(project_SOURCES main.cpp
-    src/alfa_node.cpp src/compressor.cpp src/octree_pointcloud_compression_2.cpp src/entropy_range_coder.cpp
-    lib/alfa_node.h lib/compressor.h lib/CompressedPointCloud.h lib/octree_pointcloud_compression_2.h lib/entropy_range_coder.h lib/color_coding.h lib/color_coding.h lib/compression_profiles.h
+    src/alfa_node.cpp src/decompressor.cpp
+    lib/alfa_node.h lib/decompressor.h lib/CompressedPointCloud.h
     )
 
 add_executable(${PROJECT_NAME} ${project_SOURCES})
