@@ -13,22 +13,21 @@ AlfaNode::AlfaNode()
 
 }
 
-void AlfaNode::publish_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_cloud)
+void AlfaNode::publish_pointcloud(compressed_pointcloud_transport::CompressedPointCloud pcl2_frame)
 {
-    sensor_msgs::PointCloud2 pcl2_frame;
-    pcl::toROSMsg(*output_cloud,pcl2_frame);
+
+//    cout << pcl2_frame.header << endl;
     cloud_publisher.publish(pcl2_frame);
-    cout << "Published decompressed point cloud"<<endl;
+    cout << "Published compressed point cloud"<<endl;
 
 }
 
 void AlfaNode::publish_metrics(alfa_msg::AlfaMetrics &metrics)
 {
     filter_metrics.publish(metrics);
-
 }
 
-void AlfaNode::process_pointcloud(compressed_pointcloud_transport::CompressedPointCloud input)
+void AlfaNode::process_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_cloud,const sensor_msgs::PointCloud2ConstPtr& header)
 {
     cout << "Please implement the process_pointcloud function"<<endl;
 }
@@ -44,18 +43,28 @@ AlfaNode::~AlfaNode()
 
 }
 
-void AlfaNode::cloud_cb(const compressed_pointcloud_transport::CompressedPointCloud::ConstPtr &input)
+void AlfaNode::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
 {
-    std::cout << "entrei na callback da descompressao" << std::endl;
-    std::cout << input->header << std::endl;
-    std::stringstream compressed_data(input->data);
 
+    if((cloud->width * cloud->height) == 0)
+        return; //return if the cloud is not dense
 
-    compressed_pointcloud_transport::CompressedPointCloud input_compressed;
-    input_compressed.data = input->data;
-    input_compressed.header = input->header;
-    //input_compressed.header.seq +=586;
-    process_pointcloud(input_compressed);
+    // convert from sensor_msg::PointCloud2 to pcl::PointCloud<PointXYZI> for the encoder
+    try
+    {
+        pcl::fromROSMsg(*cloud, *pcloud);
+    }
+    catch (std::runtime_error e)
+    {
+        ROS_ERROR_STREAM("Error in converting ros cloud to pcl cloud: " << e.what());
+    }
+
+    std::cout << "Recebi cloud" << std::endl;
+
+    std::cout << (static_cast<float> (pcloud->size()) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f) << std::endl;
+
+    process_pointcloud(pcloud,cloud);
+
 
 }
 
@@ -85,13 +94,13 @@ void AlfaNode::init()
 
 void AlfaNode::subscribe_topics()
 {
-    sub_cloud = nh.subscribe("point_cloud/compressed",1,&AlfaNode::cloud_cb,this);
+    sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaNode::cloud_cb,this);
     sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaNode::parameters_cb,this);
     ros::NodeHandle n;
     filter_metrics = n.advertise<alfa_msg::AlfaMetrics>(string(NODE_NAME).append("_metrics"), 1);
     alive_publisher = n.advertise<alfa_msg::AlfaAlivePing>(string(NODE_NAME).append("_alive"),1);
-    cloud_publisher = n.advertise<sensor_msgs::PointCloud2>("point_cloud/decompressed",1);
-    m_spin_thread = new boost::thread(&AlfaNode::spin, this);
+    cloud_publisher = n.advertise<compressed_pointcloud_transport::CompressedPointCloud>("point_cloud/compressed",1);
+    //m_spin_thread = new boost::thread(&AlfaNode::spin, this);
 
 
 }
@@ -143,3 +152,10 @@ void AlfaNode::spin()
     cout<<"started spinning with success"<<endl;
     ros::spin();
 }
+
+
+
+
+
+
+
