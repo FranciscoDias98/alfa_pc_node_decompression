@@ -11,7 +11,7 @@ Alfa_Pc_Decompress::Alfa_Pc_Decompress()
     std::cout << "entrei no construtor" << std::endl;
     out_cloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
     show_statistics = true;
-    compression_profile = pcl::io::MY_LOW_RES_ONLINE_COMPRESSION_WITH_COLOR;
+    compression_profile = pcl::io::MANUAL_CONFIGURATION;
     point_cloud_decoder = new pcl::io::OctreePointCloudCompression<pcl::PointXYZRGB>(compression_profile,show_statistics);
     //sub_topic();
     //pub_();
