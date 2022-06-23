@@ -15,11 +15,13 @@
 #include "alfa_msg/AlfaConfigure.h"
 #include "alfa_msg/AlfaMetrics.h"
 #include "alfa_msg/AlfaAlivePing.h"
+#include <boost/serialization/shared_ptr.hpp>
+#include "CompressedPointCloud.h"
+#include <sensor_msgs/PointCloud2.h>
 
+#define NODE_NAME "alfa_pc_decompression_node"
 
-#define NODE_NAME "alfa_pd"
-
-#define NODE_TYPE "Weather denoising"
+#define NODE_TYPE "Decompression"
 
 
 #define TIMER_SLEEP 50000
@@ -31,10 +33,10 @@ class AlfaNode
 public:
     AlfaNode();
 
-    void publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
+    void publish_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_cloud);
     void publish_metrics(alfa_msg::AlfaMetrics &metrics);
 
-    virtual void process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud);
+    virtual void process_pointcloud(compressed_pointcloud_transport::CompressedPointCloud input);
     virtual alfa_msg::AlfaConfigure::Response   process_config(alfa_msg::AlfaConfigure::Request &req);
 
     int node_status;
@@ -42,12 +44,12 @@ public:
 
 private:
 
-    void cloud_cb (const  sensor_msgs::PointCloud2ConstPtr& cloud);
+    void cloud_cb (const compressed_pointcloud_transport::CompressedPointCloud::ConstPtr &input);
     bool parameters_cb(alfa_msg::AlfaConfigure::Request &req, alfa_msg::AlfaConfigure::Response &res);
     ros::Subscriber sub_cloud;
     ros::ServiceServer sub_parameters;
     ros::NodeHandle nh;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr pcloud;
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcloud;
     void init();
     void subscribe_topics();
     void ticker_thread();

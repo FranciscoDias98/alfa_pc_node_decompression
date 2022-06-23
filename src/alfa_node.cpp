@@ -9,15 +9,17 @@ AlfaNode::AlfaNode()
 
     subscribe_topics();
     alive_ticker = new boost::thread(&AlfaNode::ticker_thread,this);
-    pcloud.reset(new pcl::PointCloud<pcl::PointXYZI>);
+    pcloud.reset(new pcl::PointCloud<pcl::PointXYZRGB>);
 
 }
 
-void AlfaNode::publish_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
+void AlfaNode::publish_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_cloud)
 {
     sensor_msgs::PointCloud2 pcl2_frame;
     pcl::toROSMsg(*output_cloud,pcl2_frame);
     cloud_publisher.publish(pcl2_frame);
+    cout << "Published decompressed point cloud"<<endl;
+
 }
 
 void AlfaNode::publish_metrics(alfa_msg::AlfaMetrics &metrics)
@@ -26,7 +28,7 @@ void AlfaNode::publish_metrics(alfa_msg::AlfaMetrics &metrics)
 
 }
 
-void AlfaNode::process_pointcloud(pcl::PointCloud<pcl::PointXYZI>::Ptr output_cloud)
+void AlfaNode::process_pointcloud(compressed_pointcloud_transport::CompressedPointCloud input)
 {
     cout << "Please implement the process_pointcloud function"<<endl;
 }
@@ -42,17 +44,18 @@ AlfaNode::~AlfaNode()
 
 }
 
-void AlfaNode::cloud_cb(const sensor_msgs::PointCloud2ConstPtr &cloud)
+void AlfaNode::cloud_cb(const compressed_pointcloud_transport::CompressedPointCloud::ConstPtr &input)
 {
-    //cout<<"Recieved pointcloud"<<endl;
-    if ((cloud->width * cloud->height) == 0)
-    {
-        cout <<"Recieved empty point cloud"<<endl;
-        return;
-    }
-    pcl::fromROSMsg(*cloud,*pcloud);
+    std::cout << "entrei na callback da descompressao" << std::endl;
+    std::cout << input->header << std::endl;
+    std::stringstream compressed_data(input->data);
 
-    process_pointcloud(pcloud);
+
+    compressed_pointcloud_transport::CompressedPointCloud input_compressed;
+    input_compressed.data = input->data;
+    input_compressed.header = input->header;
+    //input_compressed.header.seq +=586;
+    process_pointcloud(input_compressed);
 
 }
 
@@ -82,12 +85,12 @@ void AlfaNode::init()
 
 void AlfaNode::subscribe_topics()
 {
-    sub_cloud = nh.subscribe("alfa_pointcloud",1,&AlfaNode::cloud_cb,this);
+    sub_cloud = nh.subscribe("point_cloud/compressed",1,&AlfaNode::cloud_cb,this);
     sub_parameters = nh.advertiseService(string(NODE_NAME).append("_settings"),&AlfaNode::parameters_cb,this);
     ros::NodeHandle n;
     filter_metrics = n.advertise<alfa_msg::AlfaMetrics>(string(NODE_NAME).append("_metrics"), 1);
     alive_publisher = n.advertise<alfa_msg::AlfaAlivePing>(string(NODE_NAME).append("_alive"),1);
-    cloud_publisher = n.advertise<sensor_msgs::PointCloud2>(string(NODE_NAME).append("_cloud"),1);
+    cloud_publisher = n.advertise<sensor_msgs::PointCloud2>("point_cloud/decompressed",1);
     m_spin_thread = new boost::thread(&AlfaNode::spin, this);
 
 
