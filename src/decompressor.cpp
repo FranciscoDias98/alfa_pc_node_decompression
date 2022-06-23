@@ -4,7 +4,7 @@
 
 unsigned int x = 0;
 unsigned long tempos = 0;
-unsigned long size =0;
+unsigned long size_compressed =0;
 
 Alfa_Pc_Decompress::Alfa_Pc_Decompress()
 {
@@ -61,8 +61,8 @@ void Alfa_Pc_Decompress::process_pointcloud(compressed_pointcloud_transport::Com
     auto duration = duration_cast<milliseconds>(stop - start);
 
     compressed_data.seekg(0,ios::end);
-    size = compressed_data.tellg();
-    std::cout << "Size comrpessed  " << size << std::endl;
+    size_compressed = compressed_data.tellg();
+    std::cout << "Size comrpessed  " << size_compressed << std::endl;
     //convert to sensor_msgs::PointCloud2
     //sensor_msgs::PointCloud2 decompressed_cloud;
     //decompressed_cloud.header = input.header;
