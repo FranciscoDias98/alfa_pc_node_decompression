@@ -6,6 +6,10 @@ unsigned int x = 0;
 unsigned long tempos = 0;
 unsigned long size_compressed =0;
 
+unsigned long tempos_test = 0;
+float size_compressed_test =0;
+float size_original_test =0;
+
 Alfa_Pc_Decompress::Alfa_Pc_Decompress()
 {
     std::cout << "entrei no construtor" << std::endl;
@@ -60,9 +64,16 @@ void Alfa_Pc_Decompress::process_pointcloud(compressed_pointcloud_transport::Com
     auto stop = high_resolution_clock::now();
     auto duration = duration_cast<milliseconds>(stop - start);
 
+    size_original_test = size_original_test + (static_cast<float> (out_cloud->points.size()) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f)*1000;
+    x++;
     compressed_data.seekg(0,ios::end);
-    size_compressed = compressed_data.tellg();
-    std::cout << "Size comrpessed  " << size_compressed << std::endl;
+    size_compressed_test = size_compressed_test+compressed_data.tellg();
+    tempos_test = tempos_test + duration.count();
+
+    if(x==100){
+        x=0;
+        exe_time();
+    }
     //convert to sensor_msgs::PointCloud2
     //sensor_msgs::PointCloud2 decompressed_cloud;
     //decompressed_cloud.header = input.header;
@@ -104,7 +115,6 @@ void Alfa_Pc_Decompress::metrics(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_c
     output_metrics.metrics.push_back(new_message);
 
 
-
 }
 
 
@@ -137,14 +147,20 @@ void Alfa_Pc_Decompress::pub_()
     //pub_cloud = nh.advertise<sensor_msgs::PointCloud2> ("point_cloud/decompressed", 1);
 }
 
-void Alfa_Pc_Decompress::exe_time(unsigned long size, unsigned long time)
+void Alfa_Pc_Decompress::exe_time()
 {
-    time = time/100 ;
-    size = size/100;
-    std::ofstream myFile("./output/exe_time");
-    myFile<< "Exe. Time: "<< time << std::endl << "Compressed Size: " <<size;
-    myFile.close();
-    std::cout << "-----------Acabei------------------------------------------------------------- \n" ;
+    tempos_test = tempos_test/100 ;
+    size_compressed_test = size_compressed_test/100;
+    size_original_test = (size_original_test)/100;
+    //std::ofstream myFile("./output/exe_time");
+    //myFile<< "Exe. Time: "<< tempos_test << std::endl << "Point Cloud Size: "<< size_original_test << std::endl << "Compressed Size: "<<size_compressed_test<< std::endl << "Ratio: " << size_original_test/size_compressed_test << std::endl ;
+    //myFile.close();
+    ROS_INFO("-----------Acabei------------------------------------------------------------- \n");
+    ROS_INFO("Time: %d\n", tempos_test);
+    ROS_INFO("Point Cloud Size: %f\n", size_original_test);
+    ROS_INFO("Ratio: %f\n", size_original_test/size_compressed_test);
+
     x=0;
-    size = 0;
+    size_compressed_test = 0;
+    size_original_test = 0;
 }

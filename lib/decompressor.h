@@ -34,7 +34,7 @@ public:
     Alfa_Pc_Decompress();
     void do_Decompression();
     //void cloud_cb (const compressed_pointcloud_transport::CompressedPointCloud::ConstPtr& input);
-    void exe_time(unsigned long size,unsigned long time);
+    void exe_time();
     alfa_msg::AlfaMetrics output_metrics;
     void process_pointcloud(compressed_pointcloud_transport::CompressedPointCloud input);
     alfa_msg::AlfaConfigure::Response   process_config(alfa_msg::AlfaConfigure::Request &req);
