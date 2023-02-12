@@ -86,8 +86,8 @@ catkin_package(
 add_definitions(${PCL_DEFINITIONS})
 
 set(project_SOURCES main.cpp
-    src/alfa_node.cpp src/decompressor.cpp
-    lib/alfa_node.h lib/decompressor.h lib/CompressedPointCloud.h
+    src/alfa_node.cpp src/decompressor.cpp src/octree_pointcloud_compression_2.cpp
+    lib/alfa_node.h lib/decompressor.h lib/CompressedPointCloud.h lib/octree_pointcloud_compression_2.h lib/color_coding.h lib/color_coding.h lib/compression_profiles.h
     )
 
 add_executable(${PROJECT_NAME} ${project_SOURCES})

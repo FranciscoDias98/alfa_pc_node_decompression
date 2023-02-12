@@ -41,9 +41,9 @@
 
 #include <pcl/octree/octree2buf_base.h>
 #include <pcl/octree/octree_pointcloud.h>
+#include <pcl/compression/entropy_range_coder.h>
 
-
-#include "entropy_range_coder.h"
+//#include "entropy_range_coder.h"
 
 #include "color_coding.h"
 
@@ -58,8 +58,18 @@
 #include <iostream>
 #include <stdio.h>
 #include <string.h>
-
+#include <fstream>
+#include <iomanip>
 //xxxxx
+#include <inttypes.h>
+#include <chrono>
+#include <time.h>
+#include<unistd.h>
+#include <ros/ros.h>
+#include <thread>
+
+//unsigned long tempos_test_2 = 0;
+//int counter = 0;
 
 using namespace pcl::octree;
 
@@ -213,138 +223,490 @@ namespace pcl
         void
         encodePointCloud (const PointCloudConstPtr &cloud_arg, std::ostream& compressed_tree_data_out_arg);
 
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
         //----------------------------------------------------------------------------------------------
         //---------------------------------- PEDREIRADAAAAAAAA ------------------------------------------
         void
         encodePointCloud_2 (const PointCloudConstPtr &cloud_arg, std::ostream& compressed_tree_data_out_arg)
 
         {
-      std::cout << "encodePointCloud_2\n";
-      unsigned char recent_tree_depth =
-          static_cast<unsigned char> (this->getTreeDepth ());
-
-      // initialize octree
-      this->setInputCloud (cloud_arg);
-
-      // add point to octree
-      this->addPointsFromInputCloud ();
-
-      // make sure cloud contains points
-      if (this->leaf_count_>0) {
+            std::cout << "//////////////// encodePointCloud_2 TESTE //////////////////\n";
+            unsigned char recent_tree_depth =
+                    static_cast<unsigned char> (this->getTreeDepth ());
+            
+            static int counter;
+            static long tempos_test_2;
 
 
-        // color field analysis
-        cloud_with_color_ = false;
-        std::vector<pcl::PCLPointField> fields;
-        int rgba_index = -1;
-        rgba_index = pcl::getFieldIndex (*this->input_, "rgb", fields);
-        if (rgba_index == -1)
-        {
-          rgba_index = pcl::getFieldIndex (*this->input_, "rgba", fields);
+            auto start_setInputCloud = chrono::high_resolution_clock::now();
+            // initialize octree
+            this->setInputCloud (cloud_arg);
+            printf("------ Done setInputCloud ------ \n ");
+            auto stop_setInputCloud = chrono::high_resolution_clock::now();
+            auto duration_setInputCloud = chrono::duration_cast<chrono::milliseconds>(stop_setInputCloud - start_setInputCloud);
+            PCL_INFO("setInputCloud Time:  %ld ms \n",duration_setInputCloud);
+
+
+
+
+            auto start_addPointsFromInputCloud = chrono::high_resolution_clock::now();
+            // add point to octree
+            this->addPointsFromInputCloud ();
+            printf("------ Done addPointsFromInputCloud ------ \n ");
+            auto stop_addPointsFromInputCloud = chrono::high_resolution_clock::now();
+            auto duration_addPointsFromInputCloud = chrono::duration_cast<chrono::milliseconds>(stop_addPointsFromInputCloud - start_addPointsFromInputCloud);
+            PCL_INFO("addPointsFromInputCloud Time:  %ld ms \n",duration_addPointsFromInputCloud);
+            
+
+
+            // make sure cloud contains points
+            if (this->leaf_count_>0) {
+                
+                
+                // color field analysis
+                cloud_with_color_ = false;
+                /*
+                std::vector<pcl::PCLPointField> fields;
+                int rgba_index = -1;
+                rgba_index = pcl::getFieldIndex (*this->input_, "rgb", fields);
+                if (rgba_index == -1)
+                {
+                    rgba_index = pcl::getFieldIndex (*this->input_, "rgba", fields);
+                }
+                if (rgba_index >= 0)
+                {
+                    point_color_offset_ = static_cast<unsigned char> (fields[rgba_index].offset);
+                    cloud_with_color_ = true;
+                }
+                */
+                // apply encoding configuration
+                cloud_with_color_ &= do_color_encoding_;
+
+                
+                // if octree depth changed, we enforce I-frame encoding
+                i_frame_ |= (recent_tree_depth != this->getTreeDepth ());// | !(iFrameCounter%10);
+                
+                // enable I-frame rate
+                if (i_frame_counter_++==i_frame_rate_)
+                {
+                    i_frame_counter_ =0;
+                    i_frame_ = true;
+                }
+                
+                // increase frameID
+                frame_ID_++;
+                
+                // do octree encoding
+                if (!do_voxel_grid_enDecoding_)
+                {
+                    point_count_data_vector_.clear ();
+                    point_count_data_vector_.reserve (cloud_arg->points.size ());
+                }
+                
+                // initialize color encoding
+                color_coder_.initializeEncoding ();
+                color_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
+                color_coder_.setVoxelCount (static_cast<unsigned int> (this->leaf_count_));
+                
+                // initialize point encoding
+                point_coder_.initializeEncoding ();
+                point_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
+                
+
+
+
+                // serialize octree
+                if (i_frame_){
+                    auto start_serializeTree = chrono::high_resolution_clock::now();
+                    // i-frame encoding - encode tree structure without referencing previous buffer
+                    this->serializeTree (binary_tree_data_vector_, false);
+                    printf("------ Done serializeTree i-frame encoding ------ \n ");
+                    auto stop_serializeTree = chrono::high_resolution_clock::now();
+                    auto duration_serializeTree = chrono::duration_cast<chrono::milliseconds>(stop_serializeTree - start_serializeTree);
+                    PCL_INFO("serializeTree Time:  %ld ms \n",duration_serializeTree);
+                    //this->serializeTree2();
+                }
+                else{
+                    // p-frame encoding - XOR encoded tree structure
+                    auto start_serializeTree = chrono::high_resolution_clock::now();
+                    this->serializeTree (binary_tree_data_vector_, true); // change to serializeTree2 <-----
+                    printf("------ Done serializeTree  p-frame encoding - XOR ------ \n ");
+                    auto stop_serializeTree = chrono::high_resolution_clock::now();
+                    auto duration_serializeTree = chrono::duration_cast<chrono::milliseconds>(stop_serializeTree - start_serializeTree);
+                    PCL_INFO("serializeTree Time:  %ld ms \n",duration_serializeTree);
+                }
+
+
+                ///////
+                double min_x, min_y, min_z, max_x, max_y, max_z;
+
+                this->getBoundingBox (min_x, min_y, min_z, max_x, max_y, max_z);
+
+                printf("------ Bounding Box ------ \n ");
+
+                printf("min_x: %f\n",min_x);
+                printf("min_y: %f\n",min_y);
+                printf("min_z: %f\n",min_z);
+                printf("max_x: %f\n",max_x);
+                printf("max_y: %f\n",max_y);
+                printf("max_z: %f\n",max_z);
+
+                //////// END MULTI
+                ///
+
+                PCL_INFO("Point count:  %ld \n",this->point_count_);
+                PCL_INFO("Leaf count:  %ld \n",this->getLeafCount());
+                PCL_INFO("Obj count:  %ld \n",this->object_count_);
+                ///////////////// PRINT TO A FILE OCCUPANCY CODE /////////////////////
+
+                // ************** IN BOTTOM ****************
+
+                //////////////////////////////////////////////////////////////////////
+                // write frame header information to stream
+                this->writeFrameHeader (compressed_tree_data_out_arg);
+
+                printf("------ Write frame header information to stream ------ \n ");
+
+                // -------  Time to encode occupancy code  ------- //
+
+                auto start = chrono::high_resolution_clock::now();
+                // apply entropy coding to the content of all data vectors and send data to output stream
+                this->entropyEncoding (compressed_tree_data_out_arg);
+                printf("------ Done Entropy Encoding ------ \n ");
+                auto stop = chrono::high_resolution_clock::now();
+                auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+                PCL_INFO("Range Encoder Time:  %ld ms \n",duration);
+
+                tempos_test_2 = tempos_test_2 + duration.count();
+                counter++;
+                if(counter==100){
+                    counter=0;
+                    PCL_INFO(" ---------------- Range Encoder Time:  %ld ms ----------------------- \n",tempos_test_2/100);
+                }
+
+
+
+                // ------------------------------------------------------------------
+                // prepare for next frame
+                this->switchBuffers ();
+                
+                // reset object count
+                object_count_ = 0;
+                
+                if (b_show_statistics_)
+                {
+                    float bytes_per_XYZ = static_cast<float> (compressed_point_data_len_) / static_cast<float> (point_count_);
+                    float bytes_per_color = static_cast<float> (compressed_color_data_len_) / static_cast<float> (point_count_);
+                    PCL_INFO ("*** POINTCLOUD ENCODING *** 2\n");
+                    PCL_INFO ("Frame ID: %d\n", frame_ID_);
+                    if (i_frame_)
+                        PCL_INFO ("Encoding Frame: Intra frame\n");
+                    else
+                        PCL_INFO ("Encoding Frame: Prediction frame\n");
+                    PCL_INFO ("Number of encoded points: -------------------------%ld\n", point_count_);
+                    PCL_INFO ("XYZ compression percentage: %f%%\n", bytes_per_XYZ / (3.0f * sizeof (float)) * 100.0f);
+                    PCL_INFO ("XYZ bytes per point: %f bytes\n", bytes_per_XYZ);
+                    PCL_INFO ("Color compression percentage: %f%%\n", bytes_per_color / (sizeof (int)) * 100.0f);
+                    PCL_INFO ("Color bytes per point: %f bytes\n", bytes_per_color);
+                    PCL_INFO ("Size of uncompressed point cloud: %f kBytes\n", static_cast<float> (point_count_) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f);
+                    PCL_INFO ("Size of compressed point cloud: %f kBytes\n", static_cast<float> (compressed_point_data_len_ + compressed_color_data_len_) / 1024.0f);
+                    PCL_INFO ("Total bytes per point: %f bytes\n", bytes_per_XYZ + bytes_per_color);
+                    PCL_INFO ("Total compression percentage: %f%%\n", (bytes_per_XYZ + bytes_per_color) / (sizeof (int) + 3.0f * sizeof (float)) * 100.0f);
+                    PCL_INFO ("Compression ratio: %f\n\n", static_cast<float> (sizeof (int) + 3.0f * sizeof (float)) / static_cast<float> (bytes_per_XYZ + bytes_per_color));
+                }
+                
+                i_frame_ = false;
+            } else {
+                if (b_show_statistics_)
+                    PCL_INFO ("Info: Dropping empty point cloud\n");
+                this->deleteTree();
+                i_frame_counter_ = 0;
+                i_frame_ = true;
+            }
         }
-        if (rgba_index >= 0)
-        {
-          point_color_offset_ = static_cast<unsigned char> (fields[rgba_index].offset);
-          cloud_with_color_ = true;
-        }
-
-        // apply encoding configuration
-        cloud_with_color_ &= do_color_encoding_;
 
 
-        // if octree depth changed, we enforce I-frame encoding
-        i_frame_ |= (recent_tree_depth != this->getTreeDepth ());// | !(iFrameCounter%10);
-
-        // enable I-frame rate
-        if (i_frame_counter_++==i_frame_rate_)
-        {
-          i_frame_counter_ =0;
-          i_frame_ = true;
-        }
-
-        // increase frameID
-        frame_ID_++;
-
-        // do octree encoding
-        if (!do_voxel_grid_enDecoding_)
-        {
-          point_count_data_vector_.clear ();
-          point_count_data_vector_.reserve (cloud_arg->points.size ());
-        }
-
-        // initialize color encoding
-        color_coder_.initializeEncoding ();
-        color_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
-        color_coder_.setVoxelCount (static_cast<unsigned int> (this->leaf_count_));
-
-        // initialize point encoding
-        point_coder_.initializeEncoding ();
-        point_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
-
-        // serialize octree
-        if (i_frame_)
-          // i-frame encoding - encode tree structure without referencing previous buffer
-          this->serializeTree (binary_tree_data_vector_, false);
-        else
-          // p-frame encoding - XOR encoded tree structure
-          this->serializeTree (binary_tree_data_vector_, true);
+        // ******************** Tentativa de Multithreading ***********************
+        //*************************************************************************
+        void encodePointCloud_multi_thread(const PointCloudConstPtr &cloud_arg, std::ostream& compressed_tree_data_out_arg,int thread_number){
+            std::cout << "//////////////// encodePointCloud_multi_thread TESTE //////////////////\n";
 
 
-        // write frame header information to stream
-        this->writeFrameHeader (compressed_tree_data_out_arg);
 
-        // apply entropy coding to the content of all data vectors and send data to output stream
-        this->entropyEncoding (compressed_tree_data_out_arg);
+            unsigned char recent_tree_depth =
+                    static_cast<unsigned char> (this->getTreeDepth ());
 
-        // prepare for next frame
-        this->switchBuffers ();
+            static int counter;
+            static long tempos_test_2;
 
-        // reset object count
-        object_count_ = 0;
 
-        if (b_show_statistics_)
-        {
-          float bytes_per_XYZ = static_cast<float> (compressed_point_data_len_) / static_cast<float> (point_count_);
-          float bytes_per_color = static_cast<float> (compressed_color_data_len_) / static_cast<float> (point_count_);
-          PCL_INFO ("*** POINTCLOUD ENCODING *** 2\n");
-          PCL_INFO ("Frame ID: %d\n", frame_ID_);
-          if (i_frame_)
-            PCL_INFO ("Encoding Frame: Intra frame\n");
-          else
-            PCL_INFO ("Encoding Frame: Prediction frame\n");
-          PCL_INFO ("Number of encoded points: -------------------------%ld\n", point_count_);
-          PCL_INFO ("XYZ compression percentage: %f%%\n", bytes_per_XYZ / (3.0f * sizeof (float)) * 100.0f);
-          PCL_INFO ("XYZ bytes per point: %f bytes\n", bytes_per_XYZ);
-          PCL_INFO ("Color compression percentage: %f%%\n", bytes_per_color / (sizeof (int)) * 100.0f);
-          PCL_INFO ("Color bytes per point: %f bytes\n", bytes_per_color);
-          PCL_INFO ("Size of uncompressed point cloud: %f kBytes\n", static_cast<float> (point_count_) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f);
-          PCL_INFO ("Size of compressed point cloud: %f kBytes\n", static_cast<float> (compressed_point_data_len_ + compressed_color_data_len_) / 1024.0f);
-          PCL_INFO ("Total bytes per point: %f bytes\n", bytes_per_XYZ + bytes_per_color);
-          PCL_INFO ("Total compression percentage: %f%%\n", (bytes_per_XYZ + bytes_per_color) / (sizeof (int) + 3.0f * sizeof (float)) * 100.0f);
-          PCL_INFO ("Compression ratio: %f\n\n", static_cast<float> (sizeof (int) + 3.0f * sizeof (float)) / static_cast<float> (bytes_per_XYZ + bytes_per_color));
-        }
+            auto start_setInputCloud = chrono::high_resolution_clock::now();
+            // initialize octree
+            this->setInputCloud (cloud_arg);
+            printf("------ Done setInputCloud ------ \n ");
+            auto stop_setInputCloud = chrono::high_resolution_clock::now();
+            auto duration_setInputCloud = chrono::duration_cast<chrono::milliseconds>(stop_setInputCloud - start_setInputCloud);
+            PCL_INFO("setInputCloud Time:  %ld ms \n",duration_setInputCloud);
 
-        i_frame_ = false;
-      } else {
-        if (b_show_statistics_)
-        PCL_INFO ("Info: Dropping empty point cloud\n");
-        this->deleteTree();
-        i_frame_counter_ = 0;
-        i_frame_ = true;
-      }
+
+
+
+            auto start_addPointsFromInputCloud = chrono::high_resolution_clock::now();
+            // add point to octree
+            this->addPointsFromInputCloud ();
+            printf("------ Done addPointsFromInputCloud ------ \n ");
+            auto stop_addPointsFromInputCloud = chrono::high_resolution_clock::now();
+            auto duration_addPointsFromInputCloud = chrono::duration_cast<chrono::milliseconds>(stop_addPointsFromInputCloud - start_addPointsFromInputCloud);
+            PCL_INFO("addPointsFromInputCloud Time:  %ld ms \n",duration_addPointsFromInputCloud);
+
+
+
+            // make sure cloud contains points
+            if (this->leaf_count_>0) {
+
+
+                // color field analysis
+                cloud_with_color_ = false;
+                /*
+            std::vector<pcl::PCLPointField> fields;
+            int rgba_index = -1;
+            rgba_index = pcl::getFieldIndex (*this->input_, "rgb", fields);
+            if (rgba_index == -1)
+            {
+                rgba_index = pcl::getFieldIndex (*this->input_, "rgba", fields);
+            }
+            if (rgba_index >= 0)
+            {
+                point_color_offset_ = static_cast<unsigned char> (fields[rgba_index].offset);
+                cloud_with_color_ = true;
+            }
+            */
+                // apply encoding configuration
+                cloud_with_color_ &= do_color_encoding_;
+
+
+                // if octree depth changed, we enforce I-frame encoding
+                i_frame_ |= (recent_tree_depth != this->getTreeDepth ());// | !(iFrameCounter%10);
+
+                // enable I-frame rate
+                if (i_frame_counter_++==i_frame_rate_)
+                {
+                    i_frame_counter_ =0;
+                    i_frame_ = true;
+                }
+
+                // increase frameID
+                frame_ID_++;
+
+                // do octree encoding
+                if (!do_voxel_grid_enDecoding_)
+                {
+                    point_count_data_vector_.clear ();
+                    point_count_data_vector_.reserve (cloud_arg->points.size ());
+                }
+
+                // initialize color encoding
+                color_coder_.initializeEncoding ();
+                color_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
+                color_coder_.setVoxelCount (static_cast<unsigned int> (this->leaf_count_));
+
+                // initialize point encoding
+                point_coder_.initializeEncoding ();
+                point_coder_.setPointCount (static_cast<unsigned int> (cloud_arg->points.size ()));
+
+
+
+
+                // serialize octree
+                if (i_frame_){
+                    auto start_serializeTree = chrono::high_resolution_clock::now();
+                    // i-frame encoding - encode tree structure without referencing previous buffer
+                    this->serializeTree2 (binary_tree_data_vector_, false);
+                    printf("------ Done serializeTree i-frame encoding ------ \n ");
+                    auto stop_serializeTree = chrono::high_resolution_clock::now();
+                    auto duration_serializeTree = chrono::duration_cast<chrono::milliseconds>(stop_serializeTree - start_serializeTree);
+                    PCL_INFO("serializeTree Time:  %ld ms \n",duration_serializeTree);
+                    //this->serializeTree2();
+                }
+                else{
+                    // p-frame encoding - XOR encoded tree structure
+                    auto start_serializeTree = chrono::high_resolution_clock::now();
+                    this->serializeTree2 (binary_tree_data_vector_, true); // change to serializeTree2 <-----
+                    printf("------ Done serializeTree  p-frame encoding - XOR ------ \n ");
+                    auto stop_serializeTree = chrono::high_resolution_clock::now();
+                    auto duration_serializeTree = chrono::duration_cast<chrono::milliseconds>(stop_serializeTree - start_serializeTree);
+                    PCL_INFO("serializeTree Time:  %ld ms \n",duration_serializeTree);
+                }
+
+                ///////////////// PRINT TO A FILE OCCUPANCY CODE /////////////////////
+
+                // ************** IN BOTTOM ****************
+
+                PCL_INFO("Point count:  %ld \n",this->point_count_);
+                PCL_INFO("Point count:  %ld \n",this->getLeafCount());
+                //////////////////////////////////////////////////////////////////////
+                // write frame header information to stream
+                this->writeFrameHeader (compressed_tree_data_out_arg);
+
+                printf("------ Write frame header information to stream ------ \n ");
+
+                // -------  Time to encode occupancy code  ------- //
+
+                auto start = chrono::high_resolution_clock::now();
+                // apply entropy coding to the content of all data vectors and send data to output stream
+                this->entropyEncoding (compressed_tree_data_out_arg);
+                printf("------ Done Entropy Encoding ------ \n ");
+                auto stop = chrono::high_resolution_clock::now();
+                auto duration = chrono::duration_cast<chrono::milliseconds>(stop - start);
+                PCL_INFO("Range Encoder Time:  %ld ms \n",duration);
+
+                tempos_test_2 = tempos_test_2 + duration.count();
+                counter++;
+                if(counter==100){
+                    counter=0;
+
+                    PCL_INFO(" ---------------- Range Encoder Time:  %ld ms ----------------------- \n",tempos_test_2/100);
+                }
+
+                // ------------------------------------------------------------------
+                // prepare for next frame
+                this->switchBuffers ();
+
+                // reset object count
+                object_count_ = 0;
+
+                if (b_show_statistics_)
+                {
+                    float bytes_per_XYZ = static_cast<float> (compressed_point_data_len_) / static_cast<float> (point_count_);
+                    float bytes_per_color = static_cast<float> (compressed_color_data_len_) / static_cast<float> (point_count_);
+                    PCL_INFO ("*** POINTCLOUD ENCODING *** 2\n");
+                    PCL_INFO ("Frame ID: %d\n", frame_ID_);
+                    if (i_frame_)
+                        PCL_INFO ("Encoding Frame: Intra frame\n");
+                    else
+                        PCL_INFO ("Encoding Frame: Prediction frame\n");
+                    PCL_INFO ("Number of encoded points: -------------------------%ld\n", point_count_);
+                    PCL_INFO ("XYZ compression percentage: %f%%\n", bytes_per_XYZ / (3.0f * sizeof (float)) * 100.0f);
+                    PCL_INFO ("XYZ bytes per point: %f bytes\n", bytes_per_XYZ);
+                    PCL_INFO ("Color compression percentage: %f%%\n", bytes_per_color / (sizeof (int)) * 100.0f);
+                    PCL_INFO ("Color bytes per point: %f bytes\n", bytes_per_color);
+                    PCL_INFO ("Size of uncompressed point cloud: %f kBytes\n", static_cast<float> (point_count_) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f);
+                    PCL_INFO ("Size of compressed point cloud: %f kBytes\n", static_cast<float> (compressed_point_data_len_ + compressed_color_data_len_) / 1024.0f);
+                    PCL_INFO ("Total bytes per point: %f bytes\n", bytes_per_XYZ + bytes_per_color);
+                    PCL_INFO ("Total compression percentage: %f%%\n", (bytes_per_XYZ + bytes_per_color) / (sizeof (int) + 3.0f * sizeof (float)) * 100.0f);
+                    PCL_INFO ("Compression ratio: %f\n\n", static_cast<float> (sizeof (int) + 3.0f * sizeof (float)) / static_cast<float> (bytes_per_XYZ + bytes_per_color));
+                }
+
+                i_frame_ = false;
+            } else {
+                if (b_show_statistics_)
+                    PCL_INFO ("Info: Dropping empty point cloud\n");
+                this->deleteTree();
+                i_frame_counter_ = 0;
+                i_frame_ = true;
+            }
     }
 
+
+
+        //*************************************************************************
+        //*************************************************************************
+
+
+
           //----------------------------------------------------------------------------------------------
           //----------------------------------------------------------------------------------------------
 
-        /** \brief Decode point cloud from input stream
+        /** \brief  point cloud from input stream
           * \param compressed_tree_data_in_arg: binary input stream containing compressed data
           * \param cloud_arg: reference to decoded point cloud
           */
         void
         decodePointCloud (std::istream& compressed_tree_data_in_arg, PointCloudPtr &cloud_arg);
 
-      protected:
+        void
+        decodePointCloud_2 (std::istream& compressed_tree_data_in_arg, PointCloudPtr &cloud_arg){
+            // synchronize to frame header
+            syncToHeader(compressed_tree_data_in_arg);
+
+            // initialize octree
+            this->switchBuffers ();
+            this->setOutputCloud (cloud_arg);
+
+            // color field analysis
+            cloud_with_color_ = false;
+            std::vector<pcl::PCLPointField> fields;
+            int rgba_index = -1;
+            rgba_index = pcl::getFieldIndex (*output_, "rgb", fields);
+            if (rgba_index == -1)
+              rgba_index = pcl::getFieldIndex (*output_, "rgba", fields);
+            if (rgba_index >= 0)
+            {
+              point_color_offset_ = static_cast<unsigned char> (fields[rgba_index].offset);
+              cloud_with_color_ = true;
+            }
+
+            // read header from input stream
+            this->readFrameHeader (compressed_tree_data_in_arg);
+
+
+            printf("Octree Resolution: %f\n",this->getResolution());
+
+
+            // decode data vectors from stream
+            this->entropyDecoding (compressed_tree_data_in_arg);
+
+            printf("Passei entropyDecoding \n");
+
+            // initialize color and point encoding
+            color_coder_.initializeDecoding ();
+            point_coder_.initializeDecoding ();
+
+            // initialize output cloud
+            output_->points.clear ();
+            output_->points.reserve (static_cast<std::size_t> (point_count_));
+
+            if (i_frame_)
+              // i-frame decoding - decode tree structure without referencing previous buffer
+              this->deserializeTree (binary_tree_data_vector_, false);
+            else
+              // p-frame decoding - decode XOR encoded tree structure
+              this->deserializeTree (binary_tree_data_vector_, true);
+
+            // assign point cloud properties
+            output_->height = 1;
+            output_->width = static_cast<uint32_t> (cloud_arg->points.size ());
+            output_->is_dense = false;
+
+            if (b_show_statistics_)
+            {
+              float bytes_per_XYZ = static_cast<float> (compressed_point_data_len_) / static_cast<float> (point_count_);
+              float bytes_per_color = static_cast<float> (compressed_color_data_len_) / static_cast<float> (point_count_);
+
+              PCL_INFO ("*** OLA ***\n");
+              PCL_INFO ("*** POINTCLOUD DECODING ***\n");
+              PCL_INFO ("Frame ID: %d\n", frame_ID_);
+              if (i_frame_)
+                PCL_INFO ("Decoding Frame: Intra frame\n");
+              else
+                PCL_INFO ("Decoding Frame: Prediction frame\n");
+              PCL_INFO ("Number of decoded points: %ld\n", point_count_);
+              PCL_INFO ("XYZ compression percentage: %f%%\n", bytes_per_XYZ / (3.0f * sizeof (float)) * 100.0f);
+              PCL_INFO ("XYZ bytes per point: %f bytes\n", bytes_per_XYZ);
+              PCL_INFO ("Color compression percentage: %f%%\n", bytes_per_color / (sizeof (int)) * 100.0f);
+              PCL_INFO ("Color bytes per point: %f bytes\n", bytes_per_color);
+              PCL_INFO ("Size of uncompressed point cloud: %f kBytes\n", static_cast<float> (point_count_) * (sizeof (int) + 3.0f * sizeof (float)) / 1024.0f);
+              PCL_INFO ("Size of compressed point cloud: %f kBytes\n", static_cast<float> (compressed_point_data_len_ + compressed_color_data_len_) / 1024.0f);
+              PCL_INFO ("Total bytes per point: %f bytes\n", bytes_per_XYZ + bytes_per_color);
+              PCL_INFO ("Total compression percentage: %f%%\n", (bytes_per_XYZ + bytes_per_color) / (sizeof (int) + 3.0f * sizeof (float)) * 100.0f);
+              PCL_INFO ("Compression ratio: %f\n\n", static_cast<float> (sizeof (int) + 3.0f * sizeof (float)) / static_cast<float> (bytes_per_XYZ + bytes_per_color));
+            }
+        }
+
+
+
+      //protected:
 
         /** \brief Write frame information to output stream
           * \param compressed_tree_data_out_arg: binary output stream
@@ -442,6 +804,13 @@ namespace pcl
 
         std::size_t object_count_;
 
+
+        // My test Multithreading
+        int number_threads;
+
+        //vector<boost::thread *> thread_list;
+        //boost::mutex mutex_cluster;
+        //pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster1,cluster2;
       };
 
     // define frame identifier
@@ -454,3 +823,43 @@ namespace pcl
 
 #endif
 
+
+//                FILE *file3,*file2,*file_1k;
+//                //file3 = fopen("/home/francisco98/file/occupancy_code_HEX.txt","w"); // ---> imprime hex values
+//                //file2 = fopen("/home/francisco98/file/occupancy_code_hex_line.txt","w"); // --->  imprime hex values \n
+//                file_1k = fopen("/home/francisco98/file/occupancy_code_hex_1kbyte.txt","w");
+
+//                ofstream my_file,my_file2,my_file3,my_file4;
+
+//                //my_file.open("/home/francisco98/file/occupancy_code_bin.txt");
+//                //my_file2.open("/home/francisco98/file/occupancy_code_bin_line.txt");
+//                //my_file3.open("/home/francisco98/file/occupancy_code_hex.txt",ios::out | ios::binary);
+//                //my_file4.open("/home/francisco98/file/occupancy_code_hex_line.txt",ios::out | ios::binary);
+//                for(int i=0;i<1000;i++){
+//                   //my_file << std::bitset<8>(binary_tree_data_vector_[i]) << std::endl;
+//                   //my_file2 << std::bitset<8>(binary_tree_data_vector_[i]);
+//                   //my_file3 << std::hex << binary_tree_data_vector_[i] << std::endl;
+//                   //my_file4 << std::hex << binary_tree_data_vector_[i];
+//                   if(binary_tree_data_vector_[i] < 0 )
+//                       fprintf(file_1k,"%x\n",binary_tree_data_vector_[i] - 0xffffff00);
+//                   else
+//                       fprintf(file_1k,"%x\n",binary_tree_data_vector_[i]);
+
+
+//                   //if(binary_tree_data_vector_[i] < 0 )
+//                       //fprintf(file2,"%x",binary_tree_data_vector_[i] - 0xffffff00);
+//                   //else
+//                       //fprintf(file2,"%x",binary_tree_data_vector_[i]);
+//                }
+
+//                //my_file.close();
+//                //my_file2.close();
+//                //my_file3.close();
+//                //my_file4.close();
+//                //fclose(file3);
+//                //fclose(file2);
+//                fclose(file_1k);
+//                ///// teste binario //////
+
+//                std::cout << std::bitset<8>(binary_tree_data_vector_[0])  << std::endl;
+//                std::cout << std::make_unsigned_t<int>(binary_tree_data_vector_[0]) << std::endl

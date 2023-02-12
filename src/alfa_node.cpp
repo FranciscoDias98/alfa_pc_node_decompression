@@ -17,6 +17,7 @@ void AlfaNode::publish_pointcloud(pcl::PointCloud<pcl::PointXYZRGB>::Ptr output_
 {
     sensor_msgs::PointCloud2 pcl2_frame;
     pcl::toROSMsg(*output_cloud,pcl2_frame);
+    pcl2_frame.header.frame_id = "decompressed";
     cloud_publisher.publish(pcl2_frame);
     cout << "Published decompressed point cloud"<<endl;
 

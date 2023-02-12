@@ -1,9 +1,9 @@
 #ifndef OCTREE_COMPRESSION_2_CPP
 #define OCTREE_COMPRESSION_2_CPP
 
-//#include <pcl/compression/entropy_range_coder.h>
+#include <pcl/compression/entropy_range_coder.h>
 #include "octree_pointcloud_compression_2.h"
-#include "entropy_range_coder.h"
+//#include "entropy_range_coder.h"
 #include <iterator>
 #include <iostream>
 #include <vector>
@@ -273,6 +273,7 @@ namespace pcl
         }
       }
       // flush output stream
+
       compressed_tree_data_out_arg.flush ();
     }
 
@@ -355,6 +356,13 @@ namespace pcl
         color_bit_depth  = color_coder_.getBitDepth ();
         point_resolution= point_coder_.getPrecision ();
         this->getBoundingBox (min_x, min_y, min_z, max_x, max_y, max_z);
+
+        printf("min_x: %d",min_x);
+        printf("min_y: %d",min_y);
+        printf("min_z: %d",min_z);
+        printf("max_x: %d",max_x);
+        printf("max_y: %d",max_y);
+        printf("max_z: %d",max_z);
 
         // encode amount of points
         if (do_voxel_grid_enDecoding_)
